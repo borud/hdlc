@@ -1,5 +1,7 @@
 package hdlc
 
+// http://www.yacer.com.cn/Release/Products/HDLC-UART/HDLC-UART_Datasheet.pdf page 23/24
+
 import (
 	"io"
 	"log"
