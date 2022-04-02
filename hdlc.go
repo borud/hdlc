@@ -2,6 +2,7 @@ package hdlc
 
 import (
 	"io"
+	"log"
 )
 
 // Constants for the escape, separator and abort values
@@ -9,15 +10,18 @@ const (
 	FlagEscape = byte(0x7d)
 	FlagSep    = byte(0x7e)
 	FlagAbort  = byte(0x7f)
+	XORMask    = byte(0x20)
+)
+
+const (
+	readBufferSize = 512
 )
 
 // Unframer unframes HDLC-like frames.
 type Unframer struct {
-	wrapped         io.Reader
-	frameCh         chan []byte
-	skipEmptyFrames bool
-	err             error
-	maxFrameSize    int
+	wrapped io.Reader
+	frameCh chan []byte
+	err     error
 }
 
 const (
@@ -27,23 +31,13 @@ const (
 // NewUnframer creates a new unframer.
 func NewUnframer(r io.Reader) *Unframer {
 	rr := &Unframer{
-		wrapped:         r,
-		skipEmptyFrames: true,
-		err:             nil,
-		maxFrameSize:    defaultMaxFrameSize,
-		frameCh:         make(chan []byte),
+		wrapped: r,
+		err:     nil,
+		frameCh: make(chan []byte),
 	}
 
 	go rr.readLoop()
-
 	return rr
-}
-
-// SetSkipEmptyFrames configures if you skip empty frames or return them. If set to true,
-// the Unframer will skip empty frames.  (The default is that we skip empty frames)
-func (r *Unframer) SetSkipEmptyFrames(skip bool) *Unframer {
-	r.skipEmptyFrames = skip
-	return r
 }
 
 // Frames returns the read channel that returns our frames
@@ -56,14 +50,17 @@ func (r *Unframer) Error() error {
 }
 
 func (r *Unframer) readLoop() {
-	defer close(r.frameCh)
+	defer func() {
+		close(r.frameCh)
+		log.Printf("readLoop exited")
+	}()
 
-	buf := make([]byte, r.maxFrameSize+1)
+	buf := make([]byte, readBufferSize)
 	frame := []byte{}
 
 	// read until we get an EOF or some other error
 	for {
-		_, err := r.wrapped.Read(buf)
+		n, err := r.wrapped.Read(buf)
 		if err == io.EOF {
 			return
 		}
@@ -73,27 +70,29 @@ func (r *Unframer) readLoop() {
 			return
 		}
 
+		// Undefined what this does, but we abort.
+		if n == 0 {
+			return
+		}
+
 		// scan over the bytes we got
-		for _, b := range buf {
-			if b == FlagSep {
-				// Skip empty frames
-				if r.skipEmptyFrames && len(frame) == 0 {
-					continue
+		for _, b := range buf[:n] {
+			switch b {
+			// Hit a frame separator char
+			case FlagSep:
+				// If the length of frame is greter than zero this is a frame end.
+				if len(frame) > 0 {
+					r.frameCh <- Unescape(frame[:])
+					frame = []byte{}
 				}
 
-				// unescape and return frame
-				r.frameCh <- Unescape(frame)
+			// Abort resets the buffer
+			case FlagAbort:
 				frame = []byte{}
-				continue
+
+			default:
+				frame = append(frame, b)
 			}
-
-			if b == FlagAbort {
-				frame = []byte{}
-				continue
-			}
-
-			frame = append(frame, b)
-
 		}
 	}
 }
@@ -102,18 +101,18 @@ func (r *Unframer) readLoop() {
 func Unescape(b []byte) []byte {
 	unescaped := []byte{}
 
-	flipBitFiveOnNextByte := false
+	xorNext := false
 	for _, b := range b {
 		// previous byte was FlagEscape so this byte needs to have its fifth bit flipped
-		if flipBitFiveOnNextByte {
-			unescaped = append(unescaped, b^0x20)
-			flipBitFiveOnNextByte = false
+		if xorNext {
+			unescaped = append(unescaped, b^XORMask)
+			xorNext = false
 			continue
 		}
 
-		// if we hit a FlagEscape we ditch this byte and set flipBitFiveOnNextByte
+		// if we hit a FlagEscape we ditch this byte and set xorNext
 		if b == FlagEscape {
-			flipBitFiveOnNextByte = true
+			xorNext = true
 			continue
 		}
 
@@ -130,13 +129,13 @@ func Escape(b []byte) []byte {
 	for _, b := range b {
 		switch b {
 		case FlagEscape:
-			escaped = append(escaped, FlagEscape, FlagEscape^0x20)
+			escaped = append(escaped, FlagEscape, FlagEscape^XORMask)
 
 		case FlagAbort:
-			escaped = append(escaped, FlagEscape, FlagAbort^0x20)
+			escaped = append(escaped, FlagEscape, FlagAbort^XORMask)
 
 		case FlagSep:
-			escaped = append(escaped, FlagEscape, FlagSep^0x20)
+			escaped = append(escaped, FlagEscape, FlagSep^XORMask)
 
 		default:
 			escaped = append(escaped, b)

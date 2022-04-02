@@ -18,19 +18,19 @@ var escapeTests = []struct {
 	Unescaped []byte
 }{
 	{
-		Escaped:   []byte{FlagEscape, FlagEscape ^ 0x20, 0x99},
+		Escaped:   []byte{FlagEscape, FlagEscape ^ XORMask, 0x99},
 		Unescaped: []byte{FlagEscape, 0x99},
 	},
 	{
-		Escaped:   []byte{0x0, FlagEscape, FlagAbort ^ 0x20, 0x99},
+		Escaped:   []byte{0x0, FlagEscape, FlagAbort ^ XORMask, 0x99},
 		Unescaped: []byte{0x0, FlagAbort, 0x99},
 	},
 	{
-		Escaped:   []byte{FlagEscape, FlagSep ^ 0x20, 0x99},
+		Escaped:   []byte{FlagEscape, FlagSep ^ XORMask, 0x99},
 		Unescaped: []byte{FlagSep, 0x99},
 	},
 	{
-		Escaped:   []byte{FlagEscape, FlagEscape ^ 0x20, FlagEscape, FlagSep ^ 0x20, FlagEscape, FlagAbort ^ 0x20, 0x99},
+		Escaped:   []byte{FlagEscape, FlagEscape ^ XORMask, FlagEscape, FlagSep ^ XORMask, FlagEscape, FlagAbort ^ XORMask, 0x99},
 		Unescaped: []byte{FlagEscape, FlagSep, FlagAbort, 0x99},
 	},
 }
@@ -44,23 +44,12 @@ func TestEscape(t *testing.T) {
 }
 
 func TestHDLC(t *testing.T) {
-	unf := NewUnframer(bytes.NewReader(data[:200]))
+	unf := NewUnframer(bytes.NewReader(data))
 
 	// for the slice of testdata we're using there should be 9 frames
 	numFrames := 0
 	for range unf.Frames() {
 		numFrames++
 	}
-	assert.Equal(t, 9, numFrames)
-}
-
-func TestHDLCEmptyFrames(t *testing.T) {
-	unf := NewUnframer(bytes.NewReader(data[:200])).
-		SetSkipEmptyFrames(false)
-
-	numFrames := 0
-	for range unf.Frames() {
-		numFrames++
-	}
-	assert.Equal(t, 19, numFrames)
+	assert.Equal(t, 51, numFrames)
 }
