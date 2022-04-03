@@ -58,6 +58,7 @@ func (r *Unframer) readLoop() {
 
 	buf := make([]byte, readBufferSize)
 	frame := []byte{}
+	wasAborted := true
 
 	// read until we get an EOF or some other error
 	for {
@@ -81,6 +82,7 @@ func (r *Unframer) readLoop() {
 			switch b {
 			// Hit a frame separator char
 			case FlagSep:
+				wasAborted = false
 				// If the length of frame is greter than zero this is a frame end.
 				if len(frame) > 0 {
 					r.frameCh <- Unescape(frame[:])
@@ -89,10 +91,13 @@ func (r *Unframer) readLoop() {
 
 			// Abort resets the buffer
 			case FlagAbort:
+				wasAborted = true
 				frame = []byte{}
 
 			default:
-				frame = append(frame, b)
+				if !wasAborted {
+					frame = append(frame, b)
+				}
 			}
 		}
 	}
