@@ -16,7 +16,10 @@ const (
 )
 
 const (
-	readBufferSize = 512
+	// This doesn't have to be particularly large since we treat the
+	// incoming bytes as a stream so it doesn't matter if frame boundaries
+	// span buffers.
+	readBufferSize = 1024
 )
 
 // Unframer unframes HDLC-like frames.
@@ -25,10 +28,6 @@ type Unframer struct {
 	frameCh chan []byte
 	err     error
 }
-
-const (
-	defaultMaxFrameSize = 1024
-)
 
 // NewUnframer creates a new unframer.
 func NewUnframer(r io.Reader) *Unframer {
