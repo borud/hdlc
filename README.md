@@ -2,7 +2,6 @@
 
 [![Godoc](http://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](https://godoc.org/github.com/borud/hdlc)
 
-
 HDLC is a library for unframing HDLC-like frames. Instead of implementing this as an io.Reader,
 we read whole frames from a channel.  This avoids misunderstandings that might arise if you use the io.Reader interface.
 
@@ -39,3 +38,7 @@ const (
 - If values equal to `FlagEscape`, `FlagSep` or `FlagAbort` occur in the payload it needs to be escaped. Escaping happens by replacing the value with two bytes: FlagEscape followed by the value we are escaping XOR'ed by XORMask (we flip the 5th bit).
 
 Unframing is just applying this process in reverse.
+
+### API choice
+
+Rather than implement the unframer as an `io.Reader` we explicitly chose an API that reflects that this is not an `io.Reader`.  We are not reading a stream, we are reading discrete frames. This means that if you were to wrap it in something that assumes a stream, you would run into problems.
