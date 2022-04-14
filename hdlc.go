@@ -86,13 +86,13 @@ func (r *Unframer) readLoop() {
 				// If the length of frame is greter than zero this is a frame end.
 				if len(frame) > 0 {
 					r.frameCh <- Unescape(frame[:])
-					frame = []byte{}
+					frame = frame[:0]
 				}
 
 			// Abort resets the buffer
 			case FlagAbort:
 				wasAborted = true
-				frame = []byte{}
+				frame = frame[:0]
 
 			default:
 				if !wasAborted {
