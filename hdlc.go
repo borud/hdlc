@@ -4,7 +4,6 @@ package hdlc
 
 import (
 	"io"
-	"log"
 )
 
 // Constants for the escape, separator and abort values
@@ -53,7 +52,6 @@ func (r *Unframer) Error() error {
 func (r *Unframer) readLoop() {
 	defer func() {
 		close(r.frameCh)
-		log.Printf("readLoop exited")
 	}()
 
 	buf := make([]byte, readBufferSize)
